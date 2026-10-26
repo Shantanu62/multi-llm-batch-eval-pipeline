@@ -1,145 +1,89 @@
-import os
-import time
-import logging
 import pandas as pd
-from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field
-from wrapper import LLMFactory, LLMRequest, LLMResponse
+import time
+from typing import List, Dict, Any
+from wrapper import GroqWrapper, LLMJudge
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-)
-logger = logging.getLogger("BatchProcessor")
+class BatchEvaluationEngine:
+    """Enterprise Batch Evaluation Engine with LLM-as-a-Judge and Cost Analytics."""
 
-class BatchItemResult(BaseModel):
-    row_id: int = Field(..., description="Unique identifier from the dataset row.")
-    prompt: str = Field(..., description="The input prompt executed.")
-    provider: str = Field(..., description="LLM provider used.")
-    model_name: str = Field(..., description="Specific model used.")
-    content: Optional[str] = Field(default=None, description="Generated response content.")
-    prompt_tokens: int = Field(default=0, description="Input token count.")
-    completion_tokens: int = Field(default=0, description="Output token count.")
-    total_tokens: int = Field(default=0, description="Total token consumption.")
-    latency_seconds: float = Field(default=0.0, description="Execution latency in seconds.")
-    status: str = Field(..., description="Execution status: SUCCESS or FAILED.")
-    error_message: Optional[str] = Field(default=None, description="Error details if execution failed.")
-
-class BatchProcessor:
-    """Engine supporting primary and fallback LLM routing with retry logic."""
-    
-    def __init__(
-        self, 
-        primary_provider: str, 
-        primary_model: str, 
-        fallback_provider: Optional[str] = None, 
-        fallback_model: Optional[str] = None,
-        max_retries: int = 3, 
-        initial_backoff: float = 2.0
-    ):
-        self.max_retries = max_retries
-        self.initial_backoff = initial_backoff
+    def __init__(self, wrapper=None):
+        self.wrapper = wrapper or GroqWrapper()
+        self.judge = LLMJudge(self.wrapper)
         
-        # Initialize Primary Provider Wrapper
-        self.primary_wrapper = LLMFactory.get_provider(provider_type=primary_provider, model_name=primary_model)
-        logger.info(f"Primary Provider Initialized: {primary_provider} ({primary_model})")
-        
-        # Initialize Fallback Provider Wrapper (Optional)
-        self.fallback_wrapper = None
-        if fallback_provider and fallback_model:
-            try:
-                self.fallback_wrapper = LLMFactory.get_provider(provider_type=fallback_provider, model_name=fallback_model)
-                logger.info(f"Fallback Provider Initialized: {fallback_provider} ({fallback_model})")
-            except Exception as e:
-                logger.warning(f"Could not initialize fallback provider: {e}")
+        # Groq Llama3 8B Pricing Rates (per 1,000 tokens)
+        self.prompt_cost_per_1k = 0.00005
+        self.completion_cost_per_1k = 0.00008
 
-    def _execute_with_fallback(self, request: LLMRequest) -> LLMResponse:
-        """Tries primary model with retries; if it fails, falls back to secondary model."""
-        backoff = self.initial_backoff
-        last_exception = None
+    def calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
+        """Calculates total estimated cost in USD ($) based on token throughput."""
+        prompt_cost = (prompt_tokens / 1000.0) * self.prompt_cost_per_1k
+        completion_cost = (completion_tokens / 1000.0) * self.completion_cost_per_1k
+        return round(prompt_cost + completion_cost, 6)
 
-        # 1. Try Primary Model First
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                return self.primary_wrapper.generate(request)
-            except Exception as e:
-                last_exception = e
-                logger.warning(f"Primary Model attempt {attempt}/{self.max_retries} failed: {str(e)}")
-                if attempt < self.max_retries:
-                    time.sleep(backoff * (2 ** (attempt - 1)))
+    def process_batch(self, input_file: str, output_file: str) -> List[Dict[str, Any]]:
+        """Processes prompts in batch, scores responses using LLM-as-a-Judge, and tracks metrics."""
+        df = pd.read_csv(input_file)
+        results = []
 
-        # 2. If Primary Fails Completely, Switch to Fallback Model
-        if self.fallback_wrapper:
-            logger.warning("Primary model exhausted all retries. Switching to Fallback Provider...")
-            for attempt in range(1, self.max_retries + 1):
-                try:
-                    return self.fallback_wrapper.generate(request)
-                except Exception as e:
-                    last_exception = e
-                    logger.warning(f"Fallback Model attempt {attempt}/{self.max_retries} failed: {str(e)}")
-                    if attempt < self.max_retries:
-                        time.sleep(backoff * (2 ** (attempt - 1)))
-
-        # If both fail, raise the final exception
-        raise last_exception
-
-    def process_csv(self, file_path: str, output_csv_path: Optional[str] = None) -> pd.DataFrame:
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Dataset file not found at: {file_path}")
-
-        df = pd.read_csv(file_path)
-        required_columns = {"id", "prompt"}
-        if not required_columns.issubset(df.columns):
-            raise ValueError(f"Dataset must contain 'id' and 'prompt' columns.")
-
-        results: List[Dict[str, Any]] = []
+        print(f"\n🚀 [Engine] Starting Enterprise Batch Evaluation for {len(df)} prompts...\n")
 
         for index, row in df.iterrows():
-            row_id = int(row["id"])
-            prompt = str(row["prompt"])
-            system_prompt = str(row.get("system_prompt", "You are a helpful AI assistant."))
+            prompt = row['prompt']
+            start_time = time.time()
             
-            logger.info(f"Processing Row ID {row_id}...")
-
-            llm_request = LLMRequest(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                temperature=0.3,
-                max_tokens=256
-            )
-
             try:
-                # Execute with automatic fallback capability
-                response = self._execute_with_fallback(llm_request)
-                
-                result_item = BatchItemResult(
-                    row_id=row_id,
-                    prompt=prompt,
-                    provider=response.provider,
-                    model_name=response.model_name,
-                    content=response.content,
-                    prompt_tokens=response.prompt_tokens,
-                    completion_tokens=response.completion_tokens,
-                    total_tokens=response.total_tokens,
-                    latency_seconds=response.latency_seconds,
-                    status="SUCCESS"
-                )
+                # 1. Generate model response
+                res = self.wrapper.generate({"prompt": prompt})
+                latency = round(time.time() - start_time, 4)
+
+                # 2. Perform LLM-as-a-Judge Evaluation
+                judge_eval = self.judge.evaluate_response(prompt, res.text)
+
+                # 3. Calculate Cost ($)
+                cost = self.calculate_cost(res.prompt_tokens, res.completion_tokens)
+
+                record = {
+                    "prompt": prompt,
+                    "response": res.text,
+                    "latency": latency,
+                    "prompt_tokens": res.prompt_tokens,
+                    "completion_tokens": res.completion_tokens,
+                    "total_tokens": res.total_tokens,
+                    "cost_usd": cost,
+                    "correctness_score": judge_eval.get("correctness_score", 3),
+                    "tone": judge_eval.get("tone_analysis", "Neutral"),
+                    "safety_pass": judge_eval.get("safety_pass", True),
+                    "judge_reasoning": judge_eval.get("reasoning", ""),
+                    "status": "SUCCESS"
+                }
+
             except Exception as e:
-                result_item = BatchItemResult(
-                    row_id=row_id,
-                    prompt=prompt,
-                    provider="Multiple (Failed)",
-                    model_name="N/A",
-                    status="FAILED",
-                    error_message=str(e)
-                )
+                import traceback
+                print(f"\n❌ EXCEPTION CAUGHT ON PROMPT {index + 1}:")
+                traceback.print_exc()
+                
+                latency = round(time.time() - start_time, 4)
+                record = {
+                    "prompt": prompt,
+                    "response": f"ERROR: {str(e)}",
+                    "latency": latency,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "cost_usd": 0.0,
+                    "correctness_score": 0,
+                    "tone": "N/A",
+                    "safety_pass": False,
+                    "judge_reasoning": f"Error: {str(e)}",
+                    "status": "FAILED"
+                }
 
-            results.append(result_item.model_dump())
-            time.sleep(0.5)
+            results.append(record)
+            print(f"✅ Finished Prompt {index + 1}/{len(df)} | Latency: {latency}s | Cost: ${record['cost_usd']} | Judge Score: {record['correctness_score']}/5")
 
-        results_df = pd.DataFrame(results)
-        if output_csv_path:
-            results_df.to_csv(output_csv_path, index=False)
-            logger.info(f"Results exported to {output_csv_path}")
+        # Save to Output CSV
+        out_df = pd.DataFrame(results)
+        out_df.to_csv(output_file, index=False)
+        print(f"\n🎉 [Engine] Evaluation Completed! Results saved to '{output_file}'.")
 
-        return results_df
+        return results

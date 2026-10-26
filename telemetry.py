@@ -1,59 +1,68 @@
-import os
 import pandas as pd
 import numpy as np
+from typing import Dict, Any
 
-def analyze_batch_results(output_csv_path: str = "batch_evaluation_output.csv"):
-    """Reads batch evaluation results and computes production telemetry metrics."""
-    if not os.path.exists(output_csv_path):
-        print(f"Error: Output file not found at {output_csv_path}.")
-        return
+class TelemetryAnalyzer:
+    """Enterprise Latency Benchmarking, Cost Analytics, and Quality Metric Summarizer."""
 
-    df = pd.read_csv(output_csv_path)
-    
-    print("=" * 60)
-    print("       MULTI-LLM BATCH EVALUATION TELEMETRY REPORT       ")
-    print("=" * 60)
-    
-    total_requests = len(df)
-    if total_requests == 0:
-        print("Dataset is empty.")
-        return
+    @staticmethod
+    def generate_report(results_file: str) -> Dict[str, Any]:
+        df = pd.read_csv(results_file)
+        
+        total_requests = len(df)
+        successful_requests = len(df[df['status'] == 'SUCCESS'])
+        success_rate = (successful_requests / total_requests) * 100 if total_requests > 0 else 0.0
 
-    success_df = df[df["status"] == "SUCCESS"]
-    failed_count = len(df[df["status"] == "FAILED"])
-    success_rate = (len(success_df) / total_requests) * 100
+        latencies = df[df['status'] == 'SUCCESS']['latency'].tolist()
+        
+        if latencies:
+            p50 = round(float(np.percentile(latencies, 50)), 4)
+            p95 = round(float(np.percentile(latencies, 95)), 4)
+            p99 = round(float(np.percentile(latencies, 99)), 4)
+            avg_latency = round(float(np.mean(latencies)), 4)
+        else:
+            p50 = p95 = p99 = avg_latency = 0.0
 
-    print(f"Total Requests Processed : {total_requests}")
-    print(f"Successful Executions    : {len(success_df)}")
-    print(f"Failed Executions        : {failed_count}")
-    print(f"Pipeline Success Rate    : {success_rate:.2f}%")
-    print("-" * 60)
+        # Token & Cost Metrics
+        total_tokens = int(df['total_tokens'].sum())
+        avg_tokens = round(float(df['total_tokens'].mean()), 2) if total_requests > 0 else 0.0
+        total_cost = round(float(df['cost_usd'].sum()), 6)
 
-    if not success_df.empty:
-        latencies = success_df["latency_seconds"].values
-        tokens = success_df["total_tokens"].values
+        # Quality & Judge Metrics
+        avg_correctness = round(float(df[df['status'] == 'SUCCESS']['correctness_score'].mean()), 2) if successful_requests > 0 else 0.0
+        safety_pass_rate = round((len(df[df['safety_pass'] == True]) / total_requests) * 100, 2) if total_requests > 0 else 0.0
 
-        p50_latency = np.percentile(latencies, 50)
-        p95_latency = np.percentile(latencies, 95)
-        p99_latency = np.percentile(latencies, 99)
-        avg_latency = np.mean(latencies)
+        report = {
+            "total_requests": total_requests,
+            "success_rate": success_rate,
+            "latency_p50": p50,
+            "latency_p95": p95,
+            "latency_p99": p99,
+            "avg_latency": avg_latency,
+            "total_tokens": total_tokens,
+            "avg_tokens": avg_tokens,
+            "total_cost_usd": total_cost,
+            "avg_correctness_score": avg_correctness,
+            "safety_pass_rate": safety_pass_rate
+        }
 
-        print("--- Latency Benchmarks (Seconds) ---")
-        print(f"  Mean Latency       : {avg_latency:.4f}s")
-        print(f"  P50 (Median)       : {p50_latency:.4f}s")
-        print(f"  P95 Percentile     : {p95_latency:.4f}s")
-        print(f"  P99 Percentile     : {p99_latency:.4f}s")
-        print("-" * 60)
+        print("\n========================================================")
+        print("📊 ENTERPRISE LLM BENCHMARK & TELEMETRY REPORT 📊")
+        print("========================================================")
+        print(f" Total Requests Evaluated : {total_requests}")
+        print(f" Success Rate             : {success_rate:.2f}%")
+        print(f"--------------------------------------------------------")
+        print(f" ⏱️ Latency P50 (Median)   : {p50} seconds")
+        print(f" ⏱️ Latency P95            : {p95} seconds")
+        print(f" ⏱️ Latency P99            : {p99} seconds")
+        print(f" ⏱️ Avg Latency            : {avg_latency} seconds")
+        print(f"--------------------------------------------------------")
+        print(f" 🔠 Total Tokens Used      : {total_tokens}")
+        print(f" 🔠 Avg Tokens / Request   : {avg_tokens}")
+        print(f" 💵 Total Estimated Cost   : ${total_cost:.6f} USD")
+        print(f"--------------------------------------------------------")
+        print(f" ⭐ Avg Correctness Score  : {avg_correctness} / 5.0")
+        print(f" 🛡️ Safety Pass Rate       : {safety_pass_rate:.2f}%")
+        print("========================================================\n")
 
-        total_tokens_used = np.sum(tokens)
-        avg_tokens = np.mean(tokens)
-        print("--- Token Consumption & Throughput ---")
-        print(f"  Total Tokens Used  : {int(total_tokens_used)}")
-        print(f"  Avg Tokens / Prompt: {avg_tokens:.1f}")
-    else:
-        print("No successful executions found to calculate metrics.")
-
-    print("=" * 60)
-
-if __name__ == "__main__":
-    analyze_batch_results()
+        return report
