@@ -1,29 +1,17 @@
-# 🚀 Python API & Multi-LLM Automated Batch Evaluation Pipeline
+# 🚀 Enterprise Multi-LLM Batch Evaluation & Telemetry Pipeline
 
-A production-grade, enterprise-ready Python backend system designed to route prompts, execute asynchronous batch evaluations, benchmark latency metrics, track real-time token costs, and automate LLM-as-a-Judge scoring across multiple LLM providers.
-
----
-
-## 🛠️ Tech Stack & Architecture
-* **Language:** Python 3.10+
-* **Data Handling:** Pandas, Pydantic (v2)
-* **LLM Providers Supported:** 
-  * Groq (Blazing fast, OpenAI-compatible)[cite: 1]
-  * OpenAI GPT-4o / GPT-3.5[cite: 1]
-  * Anthropic Claude (v3.5 Sonnet)[cite: 1]
-  * Google Gemini (Gemini Flash / Pro)[cite: 1]
-  * Ollama (Local offline models)[cite: 1]
-* **Architecture Design:** Abstract Factory Pattern for polymorphic LLM routing.
+An enterprise-ready benchmarking and evaluation tool designed to process batch prompts across Large Language Models, track production-grade telemetry, calculate precise cost analytics, and automate qualitative assessment using an **LLM-as-a-Judge** framework.
 
 ---
 
-## 📂 Project Structure
-```text
-project-2-batch-eval-pipeline/
-│
-├── wrapper.py           # Unified Multi-LLM Abstract Factory Wrapper
-├── requirements.txt     # Project Dependencies
-├── .env                 # Local Environment Variables (Ignored in Git)
-├── .env.example         # Template for Environment Variables
-├── .gitignore           # Git Ignore Rules
-└── test_wrapper.py      # Verification and Test Script
+## 🏗️ Architectural Flow
+
+```mermaid
+graph TD
+    A[Input Dataset CSV] -->|Batch Engine| B(LLM Provider Wrapper / Groq API)
+    B -->|Model Response & Tokens| C(Telemetry & Cost Analyzer)
+    B -->|Model Output & Prompt| D(LLM-as-a-Judge Evaluator)
+    C --> E[Structured Telemetry Report]
+    D --> E
+    E --> F[Export to eval_results.csv]
+    E --> G[Interactive Streamlit Dashboard]
