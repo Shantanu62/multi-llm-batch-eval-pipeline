@@ -1,0 +1,5 @@
+id,prompt,system_prompt,category
+1,Explain the core concept of RAG in AI architecture.,You are a senior AI engineer.,Technical
+2,What is the difference between synchronous and asynchronous execution in Python?,You are a backend system expert.,Programming
+3,Write a polite email declining a job offer due to mismatched tech stack.,You are an executive communication coach.,Professional
+4,Explain gradient descent using a simple mountain hiking analogy.,You are an intuitive machine learning educator.,Education

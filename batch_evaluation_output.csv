@@ -1,0 +1,33 @@
+row_id,prompt,provider,model_name,content,prompt_tokens,completion_tokens,total_tokens,latency_seconds,status,error_message
+1,Explain the core concept of RAG in AI architecture.,Groq,openai/gpt-oss-120b,"**Retrieval‑Augmented Generation (RAG)** is an AI architecture that combines two complementary capabilities:
+
+| Component | Role | Typical Implementation |
+|-----------|------|------------------------|
+| **Retriever** | Finds relevant pieces of external information (often called *documents* or *chunks*) that are likely to help answer a user query. | Dense vector search (e.g., FAISS, ScaNN) over embeddings produced by a bi‑encoder, sparse BM25, or hybrid methods. |
+| **Generator** | Takes the retrieved text and the original prompt, then produces a fluent, context‑aware response. | Large language model (LLM) such as GPT‑3/4, LLaMA, T5, etc., usually fine‑tuned to condition on retrieved passages. |
+| **Knowledge Store** | The corpus from which the retriever draws. | Wikipedia dumps, product",92,256,348,1.4433,SUCCESS,
+2,What is the difference between synchronous and asynchronous execution in Python?,Groq,openai/gpt-oss-120b,"## Synchronous vs Asynchronous Execution in Python  
+
+| Aspect | **Synchronous** | **Asynchronous** |
+|--------|-----------------|------------------|
+| **Basic idea** | Code runs **step‑by‑step**; the next line starts only after the current one finishes. | Code can **pause** (yield control) while waiting for something (I/O, timers, etc.) and let other work run in the meantime. |
+| **Blocking** | Operations block the thread – the thread does nothing else until the call returns. | Operations are **non‑blocking**; they return a *future*/coroutine that the event loop can schedule later. |
+| **Typical use‑case** | CPU‑bound work, simple scripts, scripts that don’t need high concurrency. | I/O‑bound work (network, disk, databases), many concurrent connections",93,256,349,0.7414,SUCCESS,
+3,Write a polite email declining a job offer due to mismatched tech stack.,Groq,openai/gpt-oss-120b,"**Subject:** Thank You for the Offer – Decision Regarding the Position
+
+Dear [Hiring Manager’s Name],
+
+I hope you’re well. I want to thank you sincerely for extending the offer for the [Job Title] position at [Company Name]. I truly enjoyed our conversations and was impressed by the team’s vision, culture, and the exciting projects you’re tackling.
+
+After careful consideration, I have decided to decline the offer. While I am enthusiastic about the role and the organization, I have realized that the primary technology stack used for the position does not align closely enough with my current skill set and professional development goals. I believe it’s in both our best interests that the role be filled by someone whose expertise matches the required stack more directly.
+
+I am grateful for the time and effort you and the interview team invested in getting to know me, and I hope our paths may cross again in the future under different circumstances",96,256,352,0.9289,SUCCESS,
+4,Explain gradient descent using a simple mountain hiking analogy.,Groq,openai/gpt-oss-120b,"### Gradient Descent in a Mountain‑Hiking Story  
+
+Imagine you are standing somewhere on a **mountain range** that is covered with fog, so you can’t see the whole landscape. Your goal is to **find the lowest valley** (the global minimum of a function). You have only one tool: a **tiny compass** that points in the direction of the steepest downhill slope at the spot where you’re standing right now.
+
+Here’s how the hike proceeds, step by step, and how each part maps to the mathematics of gradient descent.
+
+| Hiking Action | What It Means in Gradient Descent |
+|---------------|-----------------------------------|
+| **1. Look at the ground under your feet** | Compute the **gradient** (the vector of partial derivatives) of the loss function at the current parameters θ. The gradient tells you the direction of steep",92,256,348,0.8234,SUCCESS,
